@@ -1,0 +1,6 @@
+.env
+node_modules
+bun.lock
+package-lock.json
+package.json
+drizzle.config.ts
