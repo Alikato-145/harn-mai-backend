@@ -4,3 +4,4 @@ bun.lock
 package-lock.json
 package.json
 drizzle.config.ts
+.claude
