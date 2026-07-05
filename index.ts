@@ -19,6 +19,7 @@ const app = new Elysia()
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ระบุให้ชัดเจน
       allowedHeaders: ["Content-Type", "Authorization"], // อนุญาต Header ที่มักส่งจาก Frontend
       credentials: true,
+      preflight: true,
     }),
   )
   .get("/health", () => ({ status: "ok" }), {
