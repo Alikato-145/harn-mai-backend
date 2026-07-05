@@ -1,5 +1,5 @@
 // src/db/schema.ts
-import { sqliteTable, text, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -61,30 +61,50 @@ export const groupsInRoom = sqliteTable("groups_in_room", {
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const memberInGroup = sqliteTable("member_in_group", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  groupId: text("group_id")
-    .notNull()
-    .references(() => groupsInRoom.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const memberInGroup = sqliteTable(
+  "member_in_group",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groupsInRoom.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    // กันสมาชิกซ้ำในกลุ่มเดียวกัน + ทำให้ onConflictDoNothing ทำงาน
+    memberUniq: uniqueIndex("member_group_user_uniq").on(
+      table.groupId,
+      table.userId,
+    ),
+  }),
+);
 
-export const itemsMapWithGroup = sqliteTable("items_map_with_group", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  groupId: text("group_id")
-    .notNull()
-    .references(() => groupsInRoom.id, { onDelete: "cascade" }),
-  itemId: text("item_id")
-    .notNull()
-    .references(() => items.id, { onDelete: "cascade" }),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const itemsMapWithGroup = sqliteTable(
+  "items_map_with_group",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groupsInRoom.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    // กันผูก item เข้ากลุ่มเดิมซ้ำ (ใช้ตอน claim splitMode="group")
+    itemGroupUniq: uniqueIndex("item_group_uniq").on(
+      table.groupId,
+      table.itemId,
+    ),
+  }),
+);
