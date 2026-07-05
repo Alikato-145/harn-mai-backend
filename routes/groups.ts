@@ -70,6 +70,44 @@ export const groupRoutes = new Elysia()
       },
     },
   )
+  .get(
+    "/rooms/:code/groups/:groupId/members",
+    async ({ params: { code, groupId }, set }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+      if (!room) {
+        set.status = 404;
+        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
+      }
+      const [group] = await db
+        .select()
+        .from(groupsInRoom)
+        .where(
+          and(eq(groupsInRoom.id, groupId), eq(groupsInRoom.roomId, room.id)),
+        );
+      if (!group) {
+        set.status = 404;
+        return { message: `ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง` };
+      }
+      // JOIN member_in_group กับ users เพื่อดึงชื่อสมาชิกมาด้วย
+      const membersInGroup = await db
+        .select({
+          userId: users.id,
+          name: users.name,
+          joinedAt: users.joinedAt,
+        })
+        .from(memberInGroup)
+        .innerJoin(users, eq(memberInGroup.userId, users.id))
+        .where(eq(memberInGroup.groupId, groupId));
+      return { groupId, name: group.name, members: membersInGroup };
+    },
+    {
+      detail: {
+        summary: "ดูสมาชิกในกลุ่ม",
+        description: "คืนรายชื่อสมาชิก (userId + name) ของกลุ่มที่ระบุ",
+        tags: ["Groups"],
+      },
+    },
+  )
   .patch(
     "/rooms/:code/groups/:groupId",
     async ({ params: { code, groupId }, set, body: { name } }) => {

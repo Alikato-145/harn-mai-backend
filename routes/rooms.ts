@@ -1,24 +1,17 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/index";
-import { rooms, users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import {
+  rooms,
+  users,
+  items,
+  groupsInRoom,
+  memberInGroup,
+  itemsMapWithGroup,
+} from "../db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { randomInt, randomUUID } from "node:crypto";
 
 export const roomRoutes = new Elysia()
-  .get(
-    "/rooms",
-    async () => {
-      const room = await db.select().from(rooms);
-      return room;
-    },
-    {
-      detail: {
-        summary: "ดูห้องทั้งหมด (debug)",
-        description: "คืนรายการห้องทั้งหมดในระบบ — ใช้สำหรับ debug เท่านั้น",
-        tags: ["Rooms"],
-      },
-    },
-  )
   .post(
     "/rooms",
     async ({ body: { roomName, hostName } }) => {
@@ -73,7 +66,154 @@ export const roomRoutes = new Elysia()
     {
       detail: {
         summary: "เข้าห้องด้วย code",
-        description: "หาห้องจาก code — ถ้าไม่เจอคืน 404 (ไม่ต้องมี user ก็เข้าดูได้)",
+        description:
+          "หาห้องจาก code — ถ้าไม่เจอคืน 404 (ไม่ต้องมี user ก็เข้าดูได้)",
+        tags: ["Rooms"],
+      },
+    },
+  )
+  .get(
+    "/rooms/:code/full",
+    async ({ params: { code }, set }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+      if (!room) {
+        set.status = 404;
+        return { error: "ไม่พบห้อง" };
+      }
+
+      // ดึงทุกอย่างของห้อง
+      const members = await db
+        .select()
+        .from(users)
+        .where(eq(users.roomId, room.id));
+      const groupList = await db
+        .select()
+        .from(groupsInRoom)
+        .where(eq(groupsInRoom.roomId, room.id));
+      const itemList = await db
+        .select()
+        .from(items)
+        .where(eq(items.roomId, room.id));
+
+      const groupIds = groupList.map((g) => g.id);
+      const itemIds = itemList.map((i) => i.id);
+
+      // สมาชิกของแต่ละกลุ่ม (join users เอาชื่อมา)
+      const memberRows = groupIds.length
+        ? await db
+            .select({
+              groupId: memberInGroup.groupId,
+              userId: users.id,
+              name: users.name,
+            })
+            .from(memberInGroup)
+            .innerJoin(users, eq(memberInGroup.userId, users.id))
+            .where(inArray(memberInGroup.groupId, groupIds))
+        : [];
+      // item ผูกกลุ่มไหนบ้าง
+      const mappingRows = itemIds.length
+        ? await db
+            .select()
+            .from(itemsMapWithGroup)
+            .where(inArray(itemsMapWithGroup.itemId, itemIds))
+        : [];
+
+      // สร้าง lookup
+      const memberName = new Map(members.map((m) => [m.id, m.name]));
+      const groupName = new Map(groupList.map((g) => [g.id, g.name]));
+      const groupMembers = new Map<string, { userId: string; name: string }[]>();
+      for (const r of memberRows) {
+        const arr = groupMembers.get(r.groupId) ?? [];
+        arr.push({ userId: r.userId, name: r.name });
+        groupMembers.set(r.groupId, arr);
+      }
+      const itemGroupIds = new Map<string, string[]>();
+      for (const r of mappingRows) {
+        const arr = itemGroupIds.get(r.itemId) ?? [];
+        arr.push(r.groupId);
+        itemGroupIds.set(r.itemId, arr);
+      }
+
+      // ประกอบ output ให้ frontend render ได้เลย
+      const groups = groupList.map((g) => ({
+        ...g,
+        members: groupMembers.get(g.id) ?? [],
+      }));
+      const itemsFull = itemList.map((i) => {
+        const gids = itemGroupIds.get(i.id) ?? [];
+        return {
+          ...i,
+          payerName: i.claimedBy ? (memberName.get(i.claimedBy) ?? null) : null,
+          groupIds: gids,
+          groupNames: gids.map((gid) => groupName.get(gid) ?? ""),
+        };
+      });
+
+      return { room, members, groups, items: itemsFull };
+    },
+    {
+      detail: {
+        summary: "โหลดข้อมูลห้องแบบเต็ม (สำหรับหน้า hub)",
+        description:
+          "คืน room + members + groups(พร้อมสมาชิก) + items(พร้อม payerName/groupNames) ในครั้งเดียว ให้ frontend render หน้าห้องได้เลย",
+        tags: ["Rooms"],
+      },
+    },
+  )
+  .post(
+    "/rooms/:code/finish",
+    async ({ params: { code }, body: { userId }, set }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+      if (!room) {
+        set.status = 404;
+        return { error: "ไม่พบห้อง" };
+      }
+      // เฉพาะ host เท่านั้นที่จบห้องได้
+      if (userId !== room.hostUserId) {
+        set.status = 403;
+        return { error: "เฉพาะ host เท่านั้นที่จบห้องได้" };
+      }
+
+      // รวบ id ไว้ลบ junction table (Turso ไม่ cascade ให้ ต้องลบเอง)
+      const roomItems = await db
+        .select({ id: items.id })
+        .from(items)
+        .where(eq(items.roomId, room.id));
+      const roomGroups = await db
+        .select({ id: groupsInRoom.id })
+        .from(groupsInRoom)
+        .where(eq(groupsInRoom.roomId, room.id));
+      const itemIds = roomItems.map((i) => i.id);
+      const groupIds = roomGroups.map((g) => g.id);
+
+      // ลบทุกอย่างของห้องนี้ เรียงจากลูกไปแม่ ใน transaction เดียว
+      await db.transaction(async (tx) => {
+        if (itemIds.length) {
+          await tx
+            .delete(itemsMapWithGroup)
+            .where(inArray(itemsMapWithGroup.itemId, itemIds));
+        }
+        if (groupIds.length) {
+          await tx
+            .delete(memberInGroup)
+            .where(inArray(memberInGroup.groupId, groupIds));
+        }
+        await tx.delete(items).where(eq(items.roomId, room.id));
+        await tx.delete(groupsInRoom).where(eq(groupsInRoom.roomId, room.id));
+        await tx.delete(users).where(eq(users.roomId, room.id));
+        await tx.delete(rooms).where(eq(rooms.id, room.id));
+      });
+
+      return { message: "จบห้องแล้ว ข้อมูลถูกลบทั้งหมด" };
+    },
+    {
+      body: t.Object({
+        userId: t.String({ minLength: 1 }),
+      }),
+      detail: {
+        summary: "จบห้อง (เฉพาะ host)",
+        description:
+          "host จบห้อง → ลบข้อมูลของห้องทั้งหมด (items, groups, members, mappings, users, room) ใน transaction เดียว หลังจากนี้ทุก endpoint ของ code นี้จะคืน 404",
         tags: ["Rooms"],
       },
     },

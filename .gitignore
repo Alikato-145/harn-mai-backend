@@ -1,7 +1,6 @@
-.env
 node_modules
-bun.lock
-package-lock.json
-package.json
-drizzle.config.ts
+.env
 .claude
+
+# หมายเหตุ: commit package.json, bun.lock, drizzle.config.ts, และ source ทั้งหมด
+# (Railway ต้องใช้ package.json + bun.lock ในการ build)

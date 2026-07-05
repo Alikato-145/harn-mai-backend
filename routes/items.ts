@@ -1,7 +1,13 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/index";
-import { rooms, items } from "../db/schema";
-import { eq } from "drizzle-orm";
+import {
+  rooms,
+  items,
+  users,
+  itemsMapWithGroup,
+  groupsInRoom,
+} from "../db/schema";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export const itemRoutes = new Elysia()
@@ -42,7 +48,7 @@ export const itemRoutes = new Elysia()
     "/rooms/:code/items/:itemId/claim",
     async ({
       params: { code, itemId },
-      body: { price, claimedBy, splitMode},
+      body: { price, claimedBy, splitMode, groupIds },
       set,
     }) => {
       const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
@@ -55,11 +61,52 @@ export const itemRoutes = new Elysia()
         set.status = 404;
         return { error: "ไม่พบ item" };
       }
-      const [updatedItem] = await db
-        .update(items)
-        .set({ claimedBy, price, splitMode })
-        .where(eq(items.id, itemId))
-        .returning();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, claimedBy), eq(users.roomId, room.id)));
+      if (!user) {
+        set.status = 404;
+        return { error: "ไม่พบผู้ใช้ในห้องนี้" };
+      }
+
+      // validate groupIds เฉพาะ mode group
+      let uniqueGroupIds: string[] = [];
+      if (splitMode === "group") {
+        if (!groupIds || groupIds.length === 0) {
+          set.status = 400;
+          return { error: "splitMode=group ต้องระบุ groupIds" };
+        }
+        uniqueGroupIds = [...new Set(groupIds)];
+        const roomGroups = await db
+          .select()
+          .from(groupsInRoom)
+          .where(eq(groupsInRoom.roomId, room.id));
+        const validGroupIds = new Set(roomGroups.map((g) => g.id));
+        if (!uniqueGroupIds.every((id) => validGroupIds.has(id))) {
+          set.status = 400;
+          return { error: "มี groupId ที่ไม่อยู่ในห้องนี้" };
+        }
+      }
+      const [updatedItem] = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(items)
+          .set({ price, claimedBy, splitMode })
+          .where(eq(items.id, itemId))
+          .returning();
+
+        await tx
+          .delete(itemsMapWithGroup)
+          .where(eq(itemsMapWithGroup.itemId, itemId));
+
+        if (splitMode === "group") {
+          await tx
+            .insert(itemsMapWithGroup)
+            .values(uniqueGroupIds.map((gid) => ({ groupId: gid, itemId })))
+            .onConflictDoNothing();
+        }
+        return [updated];
+      });
       return updatedItem;
     },
     {
@@ -67,6 +114,7 @@ export const itemRoutes = new Elysia()
         price: t.Number(),
         claimedBy: t.String(),
         splitMode: t.Union([t.Literal("all"), t.Literal("group")]),
+        groupIds: t.Optional(t.Array(t.String({ minLength: 1 }))),
       }),
       detail: {
         summary: "claim item (ระบุคนจ่าย + ราคา)",
@@ -89,11 +137,17 @@ export const itemRoutes = new Elysia()
         set.status = 404;
         return { error: "ไม่พบ item" };
       }
-      const [updatedItem] = await db
-        .update(items)
-        .set({ claimedBy: null, price: null, splitMode: "all" })
-        .where(eq(items.id, itemId))
-        .returning();
+      const [updatedItem] = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(items)
+          .set({ claimedBy: null, price: null, splitMode: "all" })
+          .where(eq(items.id, itemId))
+          .returning();
+        await tx
+          .delete(itemsMapWithGroup)
+          .where(eq(itemsMapWithGroup.itemId, itemId));
+        return [updated];
+      });
       return updatedItem;
     },
     {
