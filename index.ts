@@ -13,11 +13,19 @@ const corsOrigin = process.env.CORS_ORIGIN
   : true;
 
 const app = new Elysia()
-  .use(cors({ origin: corsOrigin }))
+  .use(
+    cors({
+      origin: corsOrigin,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ระบุให้ชัดเจน
+      allowedHeaders: ["Content-Type", "Authorization"], // อนุญาต Header ที่มักส่งจาก Frontend
+      credentials: true,
+    }),
+  )
   .get("/health", () => ({ status: "ok" }), {
     detail: {
       summary: "health check",
-      description: "ไว้ให้ platform (Railway/Fly) ping เช็กว่า service ยังทำงาน",
+      description:
+        "ไว้ให้ platform (Railway/Fly) ping เช็กว่า service ยังทำงาน",
       tags: ["System"],
     },
   })
