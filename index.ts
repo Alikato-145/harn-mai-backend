@@ -34,7 +34,9 @@ const app = new Elysia()
   .use(itemRoutes)
   .use(groupRoutes)
   .use(settlementRoutes)
-  // prod: platform กำหนด PORT ให้เอง / dev: fallback 3000
-  .listen({ port: process.env.PORT ?? 3000, hostname: "0.0.0.0" });
+  .listen({
+    port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
+    hostname: "0.0.0.0", // 🌟 บังคับให้รับทุก IP, ห้ามลืมเด็ดขาดสำหรับ Railway
+  });
 
 console.log(`Server is running on port ${app.server?.port}`);
