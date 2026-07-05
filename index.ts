@@ -1,6 +1,5 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { openapi } from "@elysia/openapi";
 import { roomRoutes } from "./routes/rooms";
 import { userRoutes } from "./routes/users";
 import { itemRoutes } from "./routes/items";
@@ -15,7 +14,6 @@ const corsOrigin = process.env.CORS_ORIGIN
 
 const app = new Elysia()
   .use(cors({ origin: corsOrigin }))
-  .use(openapi())
   .get("/health", () => ({ status: "ok" }), {
     detail: {
       summary: "health check",
