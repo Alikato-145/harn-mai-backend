@@ -22,7 +22,6 @@ const app = new Elysia()
       credentials: true,
     }),
   )
-  .use(openapi())
   .get("/health", () => ({ status: "ok" }), {
     detail: {
       summary: "health check",
