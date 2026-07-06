@@ -35,7 +35,7 @@ const app = new Elysia()
   .use(groupRoutes)
   .use(settlementRoutes)
   .listen({
-    port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
+    port: process.env.PORT ? parseInt(process.env.PORT) : 8080,
     hostname: "0.0.0.0", // 🌟 บังคับให้รับทุก IP, ห้ามลืมเด็ดขาดสำหรับ Railway
   });
 

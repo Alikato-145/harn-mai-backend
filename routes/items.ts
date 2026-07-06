@@ -158,4 +158,26 @@ export const itemRoutes = new Elysia()
         tags: ["Items"],
       },
     },
+  )
+  .delete(
+    "/rooms/:code/items/:itemId",
+    async ({ set, params: { code, itemId } }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+      if (!room) {
+        set.status = 404;
+        return { error: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
+      }
+      const [item] = await db.select().from(items).where(eq(items.id, itemId));
+      if (!item) {
+        set.status = 404;
+        return { error: "ไม่พบ item" };
+      }
+      await db.transaction(async (tx) => {
+        await tx.delete(items).where(eq(items.id, itemId));
+        await tx
+          .delete(itemsMapWithGroup)
+          .where(eq(itemsMapWithGroup.itemId, itemId));
+      });
+      return { message: "ลบ item สำเร็จ" };
+    },
   );
