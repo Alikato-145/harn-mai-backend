@@ -42,8 +42,8 @@ export const roomRoutes = new Elysia()
     },
     {
       body: t.Object({
-        roomName: t.String(),
-        hostName: t.String({ minLength: 1 }),
+        roomName: t.String({maxLength:50}),
+        hostName: t.String({ minLength: 1 ,maxLength:50}),
       }),
       detail: {
         summary: "สร้างห้องใหม่ + host",

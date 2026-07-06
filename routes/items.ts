@@ -9,32 +9,19 @@ import {
 } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { addItemToRoom } from "../services/items.service";
 
 export const itemRoutes = new Elysia()
   .post(
     "/rooms/:code/items",
     async ({ params: { code }, body: { name, note }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { error: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const itemsId = randomUUID();
-      const [newItem] = await db
-        .insert(items)
-        .values({
-          id: itemsId,
-          roomId: room.id,
-          name,
-          note,
-        })
-        .returning();
+      const newItem = await addItemToRoom(code, name, note);
       return newItem;
     },
     {
       body: t.Object({
-        name: t.String(),
-        note: t.Optional(t.String()),
+        name: t.String({maxLength:50}),
+        note: t.Optional(t.String({maxLength:50})),
       }),
       detail: {
         summary: "สร้าง item เปล่า",
