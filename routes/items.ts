@@ -9,7 +9,7 @@ import {
 } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { addItemToRoom } from "../services/items.service";
+import { addItemToRoom, claimItem } from "../services/items.service";
 
 export const itemRoutes = new Elysia()
   .post(
@@ -20,8 +20,8 @@ export const itemRoutes = new Elysia()
     },
     {
       body: t.Object({
-        name: t.String({maxLength:50}),
-        note: t.Optional(t.String({maxLength:50})),
+        name: t.String({ maxLength: 50 }),
+        note: t.Optional(t.String({ maxLength: 50 })),
       }),
       detail: {
         summary: "สร้าง item เปล่า",
@@ -38,62 +38,14 @@ export const itemRoutes = new Elysia()
       body: { price, claimedBy, splitMode, groupIds },
       set,
     }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { error: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [item] = await db.select().from(items).where(eq(items.id, itemId));
-      if (!item) {
-        set.status = 404;
-        return { error: "ไม่พบ item" };
-      }
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(and(eq(users.id, claimedBy), eq(users.roomId, room.id)));
-      if (!user) {
-        set.status = 404;
-        return { error: "ไม่พบผู้ใช้ในห้องนี้" };
-      }
-
-      // validate groupIds เฉพาะ mode group
-      let uniqueGroupIds: string[] = [];
-      if (splitMode === "group") {
-        if (!groupIds || groupIds.length === 0) {
-          set.status = 400;
-          return { error: "splitMode=group ต้องระบุ groupIds" };
-        }
-        uniqueGroupIds = [...new Set(groupIds)];
-        const roomGroups = await db
-          .select()
-          .from(groupsInRoom)
-          .where(eq(groupsInRoom.roomId, room.id));
-        const validGroupIds = new Set(roomGroups.map((g) => g.id));
-        if (!uniqueGroupIds.every((id) => validGroupIds.has(id))) {
-          set.status = 400;
-          return { error: "มี groupId ที่ไม่อยู่ในห้องนี้" };
-        }
-      }
-      const [updatedItem] = await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(items)
-          .set({ price, claimedBy, splitMode })
-          .where(eq(items.id, itemId))
-          .returning();
-
-        await tx
-          .delete(itemsMapWithGroup)
-          .where(eq(itemsMapWithGroup.itemId, itemId));
-
-        if (splitMode === "group") {
-          await tx
-            .insert(itemsMapWithGroup)
-            .values(uniqueGroupIds.map((gid) => ({ groupId: gid, itemId })))
-            .onConflictDoNothing();
-        }
-        return [updated];
-      });
+      const updatedItem = await claimItem(
+        code,
+        itemId,
+        price,
+        claimedBy,
+        splitMode,
+        groupIds,
+      );
       return updatedItem;
     },
     {

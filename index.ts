@@ -5,6 +5,7 @@ import { userRoutes } from "./routes/users";
 import { itemRoutes } from "./routes/items";
 import { groupRoutes } from "./routes/groups";
 import { settlementRoutes } from "./routes/settlement";
+import openapi from "@elysia/openapi";
 
 // dev: ไม่ตั้ง CORS_ORIGIN → เปิดทุก origin (true)
 // prod: ตั้ง CORS_ORIGIN=https://your-frontend.vercel.app (คั่นด้วย , ได้หลายอัน)
@@ -21,6 +22,7 @@ const app = new Elysia()
       credentials: true,
     }),
   )
+  .use(openapi())
   .get("/health", () => ({ status: "ok" }), {
     detail: {
       summary: "health check",

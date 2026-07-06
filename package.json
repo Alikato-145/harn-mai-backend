@@ -10,11 +10,11 @@
     "@elysiajs/cors": "^1.4.2",
     "@libsql/client": "^0.17.4",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^1.0.0-rc.4",
     "elysia": "^1.4.29"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^1.0.0-rc.4"
   }
 }
