@@ -9,7 +9,12 @@ import {
 } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { addItemToRoom, claimItem } from "../services/items.service";
+import {
+  addItemToRoom,
+  claimItem,
+  unclaimItem,
+  deleteItem,
+} from "../services/items.service";
 
 export const itemRoutes = new Elysia()
   .post(
@@ -66,27 +71,7 @@ export const itemRoutes = new Elysia()
   .post(
     "/rooms/:code/items/:itemId/unclaim",
     async ({ params: { code, itemId }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { error: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [item] = await db.select().from(items).where(eq(items.id, itemId));
-      if (!item) {
-        set.status = 404;
-        return { error: "ไม่พบ item" };
-      }
-      const [updatedItem] = await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(items)
-          .set({ claimedBy: null, price: null, splitMode: "all" })
-          .where(eq(items.id, itemId))
-          .returning();
-        await tx
-          .delete(itemsMapWithGroup)
-          .where(eq(itemsMapWithGroup.itemId, itemId));
-        return [updated];
-      });
+      const updatedItem = await unclaimItem(code, itemId);
       return updatedItem;
     },
     {
@@ -101,22 +86,7 @@ export const itemRoutes = new Elysia()
   .delete(
     "/rooms/:code/items/:itemId",
     async ({ set, params: { code, itemId } }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { error: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [item] = await db.select().from(items).where(eq(items.id, itemId));
-      if (!item) {
-        set.status = 404;
-        return { error: "ไม่พบ item" };
-      }
-      await db.transaction(async (tx) => {
-        await tx.delete(items).where(eq(items.id, itemId));
-        await tx
-          .delete(itemsMapWithGroup)
-          .where(eq(itemsMapWithGroup.itemId, itemId));
-      });
+      const result = await deleteItem(code, itemId);
       return { message: "ลบ item สำเร็จ" };
     },
   );

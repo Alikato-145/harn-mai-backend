@@ -76,3 +76,31 @@ export async function claimItem(
   });
   return updatedItem;
 }
+export async function unclaimItem(code: string, itemId: string) {
+  const room = await getRoomByCode(code);
+  if (!(await IsIteminRoom(room.Id, itemId)))
+    throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
+  const [updatedItem] = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(items)
+      .set({ claimedBy: null, price: null, splitMode: "all" })
+      .where(eq(items.id, itemId))
+      .returning();
+    await tx
+      .delete(itemsMapWithGroup)
+      .where(eq(itemsMapWithGroup.itemId, itemId));
+    return [updated];
+  });
+  return updatedItem;
+}
+export async function deleteItem(code: string, itemId: string) {
+  const room = await getRoomByCode(code);
+  if (!(await IsIteminRoom(room.Id, itemId)))
+    throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
+  await db.transaction(async (tx) => {
+    await tx.delete(items).where(eq(items.id, itemId));
+    await tx
+      .delete(itemsMapWithGroup)
+      .where(eq(itemsMapWithGroup.itemId, itemId));
+  });
+}
