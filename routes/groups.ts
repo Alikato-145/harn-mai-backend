@@ -7,6 +7,10 @@ import {
   createGroup,
   getGroupByCode,
   getUsersInGroup,
+  updateGroupName,
+  addMembersToGroup,
+  deleteGroup,
+  deleteMembersInGroup,
 } from "../services/groups.service";
 
 export const groupRoutes = new Elysia()
@@ -14,7 +18,6 @@ export const groupRoutes = new Elysia()
     "/rooms/:code/groups",
     async ({ params: { code }, body: { name, userIds }, set }) => {
       const result = await createGroup(code, name, userIds);
-      set.status = 201;
       return result;
     },
     {
@@ -62,26 +65,8 @@ export const groupRoutes = new Elysia()
   .patch(
     "/rooms/:code/groups/:groupId",
     async ({ params: { code, groupId }, set, body: { name } }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [group] = await db
-        .select()
-        .from(groupsInRoom)
-        .where(
-          and(eq(groupsInRoom.id, groupId), eq(groupsInRoom.roomId, room.id)),
-        );
-      if (!group) {
-        set.status = 404;
-        return { message: `ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง` };
-      }
-      await db
-        .update(groupsInRoom)
-        .set({ name })
-        .where(eq(groupsInRoom.id, groupId));
-      return { groupId, name };
+      const updatedGroup = await updateGroupName(code, groupId, name);
+      return updatedGroup;
     },
     {
       body: t.Object({
@@ -97,22 +82,7 @@ export const groupRoutes = new Elysia()
   .delete(
     "/rooms/:code/groups/:groupId",
     async ({ params: { code, groupId }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [group] = await db
-        .select()
-        .from(groupsInRoom)
-        .where(
-          and(eq(groupsInRoom.id, groupId), eq(groupsInRoom.roomId, room.id)),
-        );
-      if (!group) {
-        set.status = 404;
-        return { message: `ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง` };
-      }
-      await db.delete(groupsInRoom).where(eq(groupsInRoom.id, groupId));
+      const group = await deleteGroup(code, groupId);
       return { message: `ลบกลุ่ม ${group.name} สำเร็จ` };
     },
     {
@@ -127,38 +97,8 @@ export const groupRoutes = new Elysia()
   .post(
     "/rooms/:code/groups/:groupId/members",
     async ({ params: { code, groupId }, set, body: { userIds } }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const roomUsers = await db
-        .select()
-        .from(users)
-        .where(eq(users.roomId, room.id));
-      const validIds = new Set(roomUsers.map((u) => u.id));
-      if (!userIds.every((id) => validIds.has(id))) {
-        set.status = 400;
-        return { message: "มี userId ที่ไม่อยู่ในห้องนี้" };
-      }
-      const [group] = await db
-        .select()
-        .from(groupsInRoom)
-        .where(
-          and(eq(groupsInRoom.id, groupId), eq(groupsInRoom.roomId, room.id)),
-        );
-      if (!group) {
-        set.status = 404;
-        return { message: `ไม่พบกลุ่ม + ${groupId} กรุณาลองใหม่อีกครั้ง` };
-      }
-
-      const uniqueIds = [...new Set(userIds)];
-      await db
-        .insert(memberInGroup)
-        .values(uniqueIds.map((uid) => ({ groupId, userId: uid })))
-        .onConflictDoNothing(); // ← ชนซ้ำก็ข้าม ไม่ error
-      set.status = 201;
-      return { userIds: uniqueIds };
+      const result = await addMembersToGroup(code, groupId, userIds);
+      return result;
     },
     {
       body: t.Object({
@@ -175,36 +115,8 @@ export const groupRoutes = new Elysia()
   .delete(
     "/rooms/:code/groups/:groupId/members/:userId",
     async ({ params: { code, groupId, userId }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [member] = await db
-        .select()
-        .from(memberInGroup)
-        .where(
-          and(
-            eq(memberInGroup.groupId, groupId),
-            eq(memberInGroup.userId, userId),
-          ),
-        );
-      if (!member) {
-        set.status = 404;
-        return {
-          message: `ไม่พบสมาชิกในกลุ่ม + ${groupId} กรุณาลองใหม่อีกครั้ง`,
-        };
-      }
-      await db
-        .delete(memberInGroup)
-        .where(
-          and(
-            eq(memberInGroup.groupId, groupId),
-            eq(memberInGroup.userId, userId),
-          ),
-        );
-      set.status = 200;
-      return { message: `ลบสมาชิก ${userId} จากกลุ่ม ${groupId} สำเร็จ` };
+      const result = await deleteMembersInGroup(code, groupId, userId);
+      return result;
     },
     {
       detail: {
