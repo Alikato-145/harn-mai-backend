@@ -1,17 +1,19 @@
 import { db } from "../db/index";
 import { items, groupsInRoom, itemsMapWithGroup } from "../db/schema";
-import { eq } from "drizzle-orm";
-import { AppError, NotFoundError } from "./errors.service";
+import { and, eq } from "drizzle-orm";
+import { NotFoundError, BadRequestError } from "./errors.service";
 import { getRoomByCode } from "./rooms.service";
-import { IsUserInRoom } from "./users.service";
+import { isUserInRoom } from "./users.service";
 
-export async function IsIteminRoom(roomId: string, itemId: string) {
-  const item = await db
+// เช็คว่า item อยู่ในห้องนี้จริงไหม — รับ roomId ที่ resolve มาแล้ว
+export async function isItemInRoom(roomId: string, itemId: string) {
+  const [item] = await db
     .select()
     .from(items)
-    .where(eq(items.roomId, roomId) && eq(items.id, itemId));
-  return item.length > 0;
+    .where(and(eq(items.roomId, roomId), eq(items.id, itemId)));
+  return !!item;
 }
+
 export async function addItemToRoom(code: string, name: string, note?: string) {
   const room = await getRoomByCode(code);
   const [newItem] = await db
@@ -24,6 +26,7 @@ export async function addItemToRoom(code: string, name: string, note?: string) {
     .returning();
   return newItem;
 }
+
 export async function claimItem(
   code: string,
   itemId: string,
@@ -33,17 +36,18 @@ export async function claimItem(
   groupIds?: string[],
 ) {
   const room = await getRoomByCode(code);
-  if (!(await IsIteminRoom(room.id, itemId)))
+  if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเท็ม");
-  if (!(await IsUserInRoom(code, claimedBy)))
+  if (!(await isUserInRoom(room.id, claimedBy)))
     throw new NotFoundError("ไม่พบผู้ใช้ในห้องนี้");
+
   let uniqueGroupIds: string[] = [];
   if (splitMode !== "group" && splitMode !== "all") {
-    throw new NotFoundError("splitMode ต้องเป็น group หรือ All");
+    throw new BadRequestError("splitMode ต้องเป็น group หรือ all");
   }
   if (splitMode === "group") {
     if (!groupIds || groupIds.length === 0) {
-      throw new NotFoundError("splitMode=group ต้องระบุ groupIds");
+      throw new BadRequestError("splitMode=group ต้องระบุ groupIds");
     }
     uniqueGroupIds = [...new Set(groupIds)];
     const roomGroups = await db
@@ -52,9 +56,10 @@ export async function claimItem(
       .where(eq(groupsInRoom.roomId, room.id));
     const validGroupIds = new Set(roomGroups.map((g) => g.id));
     if (!uniqueGroupIds.every((id) => validGroupIds.has(id))) {
-      throw new NotFoundError("มี groupId ที่ไม่อยู่ในห้องนี้");
+      throw new BadRequestError("มี groupId ที่ไม่อยู่ในห้องนี้");
     }
   }
+
   const [updatedItem] = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(items)
@@ -76,9 +81,10 @@ export async function claimItem(
   });
   return updatedItem;
 }
+
 export async function unclaimItem(code: string, itemId: string) {
   const room = await getRoomByCode(code);
-  if (!(await IsIteminRoom(room.Id, itemId)))
+  if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
   const [updatedItem] = await db.transaction(async (tx) => {
     const [updated] = await tx
@@ -93,9 +99,10 @@ export async function unclaimItem(code: string, itemId: string) {
   });
   return updatedItem;
 }
+
 export async function deleteItem(code: string, itemId: string) {
   const room = await getRoomByCode(code);
-  if (!(await IsIteminRoom(room.Id, itemId)))
+  if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
   await db.transaction(async (tx) => {
     await tx.delete(items).where(eq(items.id, itemId));

@@ -1,6 +1,6 @@
 import { db } from "../db/index";
 import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NotFoundError } from "./errors.service";
 import { getRoomByCode } from "./rooms.service";
 
@@ -23,19 +23,17 @@ export async function removeUserFromRoom(code: string, userId: string) {
   return { message: "ลบผู้ใช้สำเร็จ" };
 }
 
-export async function findUserByCode(code: string) {
+// list คนทั้งห้อง
+export async function getUsersInRoom(code: string) {
   const room = await getRoomByCode(code);
-  const usersInRoom = await db
-    .select()
-    .from(users)
-    .where(eq(users.roomId, room.id));
-  return usersInRoom;
+  return db.select().from(users).where(eq(users.roomId, room.id));
 }
-export async function IsUserInRoom(code: string, userId: string) {
-  const room = await getRoomByCode(code);
-  const user = await db
+
+// เช็คว่า user อยู่ในห้องนี้จริงไหม — รับ roomId ที่ resolve มาแล้ว (ไม่ query ห้องซ้ำ)
+export async function isUserInRoom(roomId: string, userId: string) {
+  const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.id, userId) && eq(users.roomId, room.id));
+    .where(and(eq(users.id, userId), eq(users.roomId, roomId)));
   return !!user;
 }
