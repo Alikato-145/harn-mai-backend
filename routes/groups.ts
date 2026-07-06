@@ -3,37 +3,19 @@ import { db } from "../db/index";
 import { rooms, users, groupsInRoom, memberInGroup } from "../db/schema";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import {
+  createGroup,
+  getGroupByCode,
+  getUsersInGroup,
+} from "../services/groups.service";
 
 export const groupRoutes = new Elysia()
   .post(
     "/rooms/:code/groups",
     async ({ params: { code }, body: { name, userIds }, set }) => {
-      const groupId = randomUUID();
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const roomUsers = await db
-        .select()
-        .from(users)
-        .where(eq(users.roomId, room.id));
-      const validIds = new Set(roomUsers.map((u) => u.id));
-      if (!userIds.every((id) => validIds.has(id))) {
-        set.status = 400;
-        return { message: "มี userId ที่ไม่อยู่ในห้องนี้" };
-      }
-      const uniqueIds = [...new Set(userIds)];
-      await db.transaction(async (tx) => {
-        await tx
-          .insert(groupsInRoom)
-          .values({ id: groupId, roomId: room.id, name });
-        await tx
-          .insert(memberInGroup)
-          .values(uniqueIds.map((uid) => ({ groupId, userId: uid })));
-      });
+      const result = await createGroup(code, name, userIds);
       set.status = 201;
-      return { groupId, name, userIds: uniqueIds };
+      return result;
     },
     {
       body: t.Object({
@@ -51,21 +33,14 @@ export const groupRoutes = new Elysia()
   .get(
     "/rooms/:code/groups",
     async ({ params: { code }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const groups = await db
-        .select()
-        .from(groupsInRoom)
-        .where(eq(groupsInRoom.roomId, room.id));
+      const groups = await getGroupByCode(code);
       return groups;
     },
     {
       detail: {
         summary: "ดูกลุ่มทั้งหมดในห้อง",
-        description: "คืนรายการกลุ่มทั้งหมดของห้องนี้ (ยังไม่รวมสมาชิกในแต่ละกลุ่ม)",
+        description:
+          "คืนรายการกลุ่มทั้งหมดของห้องนี้ (ยังไม่รวมสมาชิกในแต่ละกลุ่ม)",
         tags: ["Groups"],
       },
     },
@@ -73,32 +48,8 @@ export const groupRoutes = new Elysia()
   .get(
     "/rooms/:code/groups/:groupId/members",
     async ({ params: { code, groupId }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { message: `ไม่พบห้อง + ${code} กรุณาลองใหม่อีกครั้ง` };
-      }
-      const [group] = await db
-        .select()
-        .from(groupsInRoom)
-        .where(
-          and(eq(groupsInRoom.id, groupId), eq(groupsInRoom.roomId, room.id)),
-        );
-      if (!group) {
-        set.status = 404;
-        return { message: `ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง` };
-      }
-      // JOIN member_in_group กับ users เพื่อดึงชื่อสมาชิกมาด้วย
-      const membersInGroup = await db
-        .select({
-          userId: users.id,
-          name: users.name,
-          joinedAt: users.joinedAt,
-        })
-        .from(memberInGroup)
-        .innerJoin(users, eq(memberInGroup.userId, users.id))
-        .where(eq(memberInGroup.groupId, groupId));
-      return { groupId, name: group.name, members: membersInGroup };
+      const members = await getUsersInGroup(groupId, code);
+      return members;
     },
     {
       detail: {
@@ -258,7 +209,8 @@ export const groupRoutes = new Elysia()
     {
       detail: {
         summary: "ลบสมาชิกออกจากกลุ่ม",
-        description: "เอา user คนหนึ่งออกจากกลุ่มที่ระบุ (ไม่ได้ลบ user ออกจากห้อง)",
+        description:
+          "เอา user คนหนึ่งออกจากกลุ่มที่ระบุ (ไม่ได้ลบ user ออกจากห้อง)",
         tags: ["Groups"],
       },
     },
