@@ -1,10 +1,12 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
+import { rateLimit } from "elysia-rate-limit";
 import { roomRoutes } from "./routes/rooms";
 import { userRoutes } from "./routes/users";
 import { itemRoutes } from "./routes/items";
 import { groupRoutes } from "./routes/groups";
 import { settlementRoutes } from "./routes/settlement";
+import { deleteExpiredRooms } from "./services/rooms.service";
 import openapi from "@elysia/openapi";
 
 // dev: ไม่ตั้ง CORS_ORIGIN → เปิดทุก origin (true)
@@ -20,6 +22,25 @@ const app = new Elysia()
       methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"], // ระบุให้ชัดเจน
       allowedHeaders: ["Content-Type", "Authorization"], // อนุญาต Header ที่มักส่งจาก Frontend
       credentials: true,
+    }),
+  )
+  .use(
+    rateLimit({
+      duration: 60_000, // หน้าต่าง 1 นาที
+      max: 100, // 100 requests/นาที ต่อ IP
+      scoping: "global", // ครอบ route plugin ที่ .use() เข้ามาด้วย
+      headers: true, // ส่ง RateLimit-* header กลับไป
+      skip: (req) => req.method === "OPTIONS", // ไม่นับ CORS preflight
+      generator: (request, server) => {
+        // หลัง proxy (Railway/Fly) IP จริงอยู่ใน x-forwarded-for; รันเครื่อง local ค่อย fallback
+        const xff = request.headers.get("x-forwarded-for");
+        if (xff) return xff.split(",")[0].trim();
+        return server?.requestIP(request)?.address ?? "unknown";
+      },
+      errorResponse: new Response(
+        JSON.stringify({ error: "คำขอถี่เกินไป ลองใหม่อีกครั้งในอีกสักครู่" }),
+        { status: 429, headers: { "content-type": "application/json" } },
+      ),
     }),
   )
   .get("/health", () => ({ status: "ok" }), {
@@ -41,3 +62,19 @@ const app = new Elysia()
   });
 
 console.log(`Server is running on port ${app.server?.port}`);
+
+// ── cleanup ห้องหมดอายุ (สร้างเกิน 7 วัน) — รันตอน start + ทุก 24 ชม. ──
+const ROOM_TTL_DAYS = 7;
+const CLEANUP_EVERY_MS = 24 * 60 * 60 * 1000;
+
+async function runCleanup() {
+  try {
+    const n = await deleteExpiredRooms(ROOM_TTL_DAYS);
+    if (n > 0) console.log(`[cleanup] ลบห้องหมดอายุ ${n} ห้อง`);
+  } catch (e) {
+    console.error("[cleanup] ล้มเหลว:", e);
+  }
+}
+
+runCleanup(); // เก็บกวาดทันทีตอนบูต
+setInterval(runCleanup, CLEANUP_EVERY_MS);

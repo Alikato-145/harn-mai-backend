@@ -10,6 +10,7 @@ import {
 } from "../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { randomInt, randomUUID } from "node:crypto";
+import { deleteRoomAndData } from "../services/rooms.service";
 
 export const roomRoutes = new Elysia()
   .post(
@@ -174,35 +175,7 @@ export const roomRoutes = new Elysia()
         return { error: "เฉพาะ host เท่านั้นที่จบห้องได้" };
       }
 
-      // รวบ id ไว้ลบ junction table (Turso ไม่ cascade ให้ ต้องลบเอง)
-      const roomItems = await db
-        .select({ id: items.id })
-        .from(items)
-        .where(eq(items.roomId, room.id));
-      const roomGroups = await db
-        .select({ id: groupsInRoom.id })
-        .from(groupsInRoom)
-        .where(eq(groupsInRoom.roomId, room.id));
-      const itemIds = roomItems.map((i) => i.id);
-      const groupIds = roomGroups.map((g) => g.id);
-
-      // ลบทุกอย่างของห้องนี้ เรียงจากลูกไปแม่ ใน transaction เดียว
-      await db.transaction(async (tx) => {
-        if (itemIds.length) {
-          await tx
-            .delete(itemsMapWithGroup)
-            .where(inArray(itemsMapWithGroup.itemId, itemIds));
-        }
-        if (groupIds.length) {
-          await tx
-            .delete(memberInGroup)
-            .where(inArray(memberInGroup.groupId, groupIds));
-        }
-        await tx.delete(items).where(eq(items.roomId, room.id));
-        await tx.delete(groupsInRoom).where(eq(groupsInRoom.roomId, room.id));
-        await tx.delete(users).where(eq(users.roomId, room.id));
-        await tx.delete(rooms).where(eq(rooms.id, room.id));
-      });
+      await deleteRoomAndData(room.id);
 
       return { message: "จบห้องแล้ว ข้อมูลถูกลบทั้งหมด" };
     },
