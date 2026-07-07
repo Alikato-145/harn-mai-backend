@@ -26,6 +26,7 @@ export const users = sqliteTable("users", {
     .notNull()
     .references(() => rooms.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  phone: text("phone"), // เบอร์ PromptPay (payee) — nullable, set ตอน claim, ใช้ตอน settlement
   joinedAt: text("joined_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -41,6 +42,7 @@ export const items = sqliteTable("items", {
   claimedBy: text("claimed_by").references(() => users.id, {
     onDelete: "set null",
   }),
+
   price: real("price"),
   splitMode: text("split_mode", { enum: ["all", "group"] })
     .notNull()

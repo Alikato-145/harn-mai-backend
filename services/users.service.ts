@@ -1,17 +1,17 @@
 import { db } from "../db/index";
 import { users } from "../db/schema";
 import { and, eq } from "drizzle-orm";
-import { NotFoundError } from "./errors.service";
+import { NotFoundError, BadRequestError } from "./errors.service";
 import { getRoomByCode } from "./rooms.service";
 
-// เพิ่มคนในห้อง — คืน { userId, name }
-export async function addUserToRoom(code: string, name: string) {
+// เพิ่มคนในห้อง — phone optional (ไว้ gen QR ตอน settlement ถ้าเป็นเจ้าหนี้)
+export async function addUserToRoom(code: string, name: string, phone?: string) {
   const room = await getRoomByCode(code);
   const [user] = await db
     .insert(users)
-    .values({ name, roomId: room.id })
+    .values({ name, roomId: room.id, phone })
     .returning();
-  return { userId: user.id, name };
+  return { userId: user.id, name: user.name, phone: user.phone };
 }
 
 // ลบคนออกจากห้อง
@@ -21,6 +21,31 @@ export async function removeUserFromRoom(code: string, userId: string) {
   if (!user) throw new NotFoundError("ไม่พบผู้ใช้");
   await db.delete(users).where(eq(users.id, userId));
   return { message: "ลบผู้ใช้สำเร็จ" };
+}
+
+// แก้ชื่อ/เบอร์ของ user — ส่งมาเฉพาะ field ที่จะแก้ (partial update)
+export async function updateUser(
+  code: string,
+  userId: string,
+  data: { name?: string; phone?: string },
+) {
+  const room = await getRoomByCode(code);
+  if (!(await isUserInRoom(room.id, userId)))
+    throw new NotFoundError("ไม่พบผู้ใช้ในห้องนี้");
+
+  // เก็บเฉพาะ field ที่ส่งมาจริง (กัน set เป็น undefined ทับของเดิม)
+  const patch: { name?: string; phone?: string } = {};
+  if (data.name !== undefined) patch.name = data.name;
+  if (data.phone !== undefined) patch.phone = data.phone;
+  if (Object.keys(patch).length === 0)
+    throw new BadRequestError("ต้องระบุอย่างน้อย 1 field (name หรือ phone)");
+
+  const [updated] = await db
+    .update(users)
+    .set(patch)
+    .where(eq(users.id, userId))
+    .returning();
+  return { userId: updated.id, name: updated.name, phone: updated.phone };
 }
 
 // list คนทั้งห้อง

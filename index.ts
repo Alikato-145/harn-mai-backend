@@ -17,11 +17,12 @@ const app = new Elysia()
   .use(
     cors({
       origin: corsOrigin,
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ระบุให้ชัดเจน
+      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"], // ระบุให้ชัดเจน
       allowedHeaders: ["Content-Type", "Authorization"], // อนุญาต Header ที่มักส่งจาก Frontend
       credentials: true,
     }),
   )
+  .use(openapi())
   .get("/health", () => ({ status: "ok" }), {
     detail: {
       summary: "health check",
