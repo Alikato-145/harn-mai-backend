@@ -69,25 +69,6 @@ export const roomRoutes = new Elysia()
     },
   )
   .get(
-    "/rooms/:code",
-    async ({ params: { code }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
-      if (!room) {
-        set.status = 404;
-        return { error: "ไม่พบห้อง" };
-      }
-      return room;
-    },
-    {
-      detail: {
-        summary: "เข้าห้องด้วย code",
-        description:
-          "หาห้องจาก code — ถ้าไม่เจอคืน 404 (ไม่ต้องมี user ก็เข้าดูได้)",
-        tags: ["Rooms"],
-      },
-    },
-  )
-  .get(
     "/rooms/:code/full",
     async ({ params: { code }, set }) => {
       const [room] = await db.select().from(rooms).where(eq(rooms.code, code));

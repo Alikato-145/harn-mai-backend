@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { rateLimit } from "elysia-rate-limit";
 import { roomRoutes } from "./routes/rooms";
+import { enterRoutes } from "./routes/enter";
 import { userRoutes } from "./routes/users";
 import { itemRoutes } from "./routes/items";
 import { groupRoutes } from "./routes/groups";
@@ -55,6 +56,7 @@ const app = new Elysia()
     },
   })
   .use(roomRoutes)
+  .use(enterRoutes)
   .use(userRoutes)
   .use(itemRoutes)
   .use(groupRoutes)
