@@ -10,9 +10,23 @@ import {
 } from "../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { randomInt, randomUUID } from "node:crypto";
-import { deleteRoomAndData } from "../services/rooms.service";
+import { deleteRoomAndData, getRoomById } from "../services/rooms.service";
 import { notifyRoom } from "../services/events.service";
 export const roomRoutes = new Elysia()
+  .get(
+    "/rooms/id/:roomId",
+    async ({ params: { roomId } }) => {
+      return await getRoomById(roomId);
+    },
+    {
+      detail: {
+        summary: "เข้าห้องด้วย roomId (UUID)",
+        description:
+          "หาห้องจาก roomId (UUID) — ใช้เป็น identifier ใน URL แทน code ที่เดาง่าย คืน room row (มี code อยู่ข้างใน)",
+        tags: ["Rooms"],
+      },
+    },
+  )
   .post(
     "/rooms",
     async ({ body: { roomName, hostName } }) => {
@@ -38,13 +52,13 @@ export const roomRoutes = new Elysia()
           roomId: roomId,
         });
       });
-      
-      return { code, userId };
+
+      return { code, userId,roomId };
     },
     {
       body: t.Object({
-        roomName: t.String({maxLength:50}),
-        hostName: t.String({ minLength: 1 ,maxLength:50}),
+        roomName: t.String({ maxLength: 50 }),
+        hostName: t.String({ minLength: 1, maxLength: 50 }),
       }),
       detail: {
         summary: "สร้างห้องใหม่ + host",
@@ -122,7 +136,10 @@ export const roomRoutes = new Elysia()
       // สร้าง lookup
       const memberName = new Map(members.map((m) => [m.id, m.name]));
       const groupName = new Map(groupList.map((g) => [g.id, g.name]));
-      const groupMembers = new Map<string, { userId: string; name: string }[]>();
+      const groupMembers = new Map<
+        string,
+        { userId: string; name: string }[]
+      >();
       for (const r of memberRows) {
         const arr = groupMembers.get(r.groupId) ?? [];
         arr.push({ userId: r.userId, name: r.name });

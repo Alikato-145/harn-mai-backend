@@ -17,7 +17,11 @@ export async function getRoomByCode(code: string) {
   if (!room) throw new NotFoundError("ไม่พบห้อง");
   return room;
 }
-
+export async function getRoomById(roomId: string) {
+  const [room] = await db.select().from(rooms).where(eq(rooms.id, roomId));
+  if (!room) throw new NotFoundError("ไม่พบห้อง");
+  return room;
+}
 
 // ลบห้อง + ข้อมูลลูกทั้งหมด เรียงลูก→แม่ ใน transaction เดียว
 // (Turso ไม่ cascade ให้ ต้องลบเอง) — ใช้ทั้งตอน finish และ cleanup อัตโนมัติ
