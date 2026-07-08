@@ -15,12 +15,13 @@ import {
   unclaimItem,
   deleteItem,
 } from "../services/items.service";
-
+import { notifyRoom } from "../services/events.service";
 export const itemRoutes = new Elysia()
   .post(
     "/rooms/:code/items",
     async ({ params: { code }, body: { name, note }, set }) => {
       const newItem = await addItemToRoom(code, name, note);
+      notifyRoom(code);
       return newItem;
     },
     {
@@ -51,6 +52,7 @@ export const itemRoutes = new Elysia()
         splitMode,
         groupIds,
       );
+      notifyRoom(code);
       return updatedItem;
     },
     {
@@ -72,6 +74,7 @@ export const itemRoutes = new Elysia()
     "/rooms/:code/items/:itemId/unclaim",
     async ({ params: { code, itemId }, set }) => {
       const updatedItem = await unclaimItem(code, itemId);
+      notifyRoom(code);
       return updatedItem;
     },
     {
@@ -87,6 +90,7 @@ export const itemRoutes = new Elysia()
     "/rooms/:code/items/:itemId",
     async ({ set, params: { code, itemId } }) => {
       const result = await deleteItem(code, itemId);
+      notifyRoom(code);
       return { message: "ลบ item สำเร็จ" };
     },
   );

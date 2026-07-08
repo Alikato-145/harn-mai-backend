@@ -18,6 +18,7 @@ export async function getRoomByCode(code: string) {
   return room;
 }
 
+
 // ลบห้อง + ข้อมูลลูกทั้งหมด เรียงลูก→แม่ ใน transaction เดียว
 // (Turso ไม่ cascade ให้ ต้องลบเอง) — ใช้ทั้งตอน finish และ cleanup อัตโนมัติ
 export async function deleteRoomAndData(roomId: string) {

@@ -11,7 +11,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { randomInt, randomUUID } from "node:crypto";
 import { deleteRoomAndData } from "../services/rooms.service";
-
+import { notifyRoom } from "../services/events.service";
 export const roomRoutes = new Elysia()
   .post(
     "/rooms",
@@ -38,7 +38,7 @@ export const roomRoutes = new Elysia()
           roomId: roomId,
         });
       });
-
+      
       return { code, userId };
     },
     {
@@ -176,7 +176,7 @@ export const roomRoutes = new Elysia()
       }
 
       await deleteRoomAndData(room.id);
-
+      notifyRoom(code);
       return { message: "จบห้องแล้ว ข้อมูลถูกลบทั้งหมด" };
     },
     {

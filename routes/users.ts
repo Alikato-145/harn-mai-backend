@@ -4,12 +4,15 @@ import {
   removeUserFromRoom,
   updateUser,
 } from "../services/users.service";
-
+import { notifyRoom } from "../services/events.service";
 export const userRoutes = new Elysia()
   .post(
     "/rooms/:code/users",
-    ({ params: { code }, body: { name, phone } }) =>
-      addUserToRoom(code, name, phone),
+    async ({ params: { code }, body: { name, phone } }) => {
+      const result = await addUserToRoom(code, name, phone);
+      notifyRoom(code);
+      return result;
+    },
     {
       body: t.Object({
         name: t.String({ minLength: 1, maxLength: 50 }),
@@ -25,7 +28,11 @@ export const userRoutes = new Elysia()
   )
   .patch(
     "/rooms/:code/users/:userId",
-    ({ params: { code, userId }, body }) => updateUser(code, userId, body),
+    async ({ params: { code, userId }, body }) => {
+      const result = await updateUser(code, userId, body);
+      notifyRoom(code);
+      return result;
+    },
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1, maxLength: 50 })),
@@ -41,7 +48,10 @@ export const userRoutes = new Elysia()
   )
   .delete(
     "/rooms/:code/users/:userId",
-    ({ params: { code, userId } }) => removeUserFromRoom(code, userId),
+    async ({ params: { code, userId } }) => {
+      await removeUserFromRoom(code, userId);
+      notifyRoom(code);
+    },
     {
       detail: {
         summary: "ลบผู้ใช้",

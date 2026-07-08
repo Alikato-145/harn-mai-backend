@@ -8,6 +8,7 @@ import { groupRoutes } from "./routes/groups";
 import { settlementRoutes } from "./routes/settlement";
 import { deleteExpiredRooms } from "./services/rooms.service";
 import openapi from "@elysia/openapi";
+import { eventRoutes } from "./routes/events";
 
 // dev: ไม่ตั้ง CORS_ORIGIN → เปิดทุก origin (true)
 // prod: ตั้ง CORS_ORIGIN=https://your-frontend.vercel.app (คั่นด้วย , ได้หลายอัน)
@@ -30,7 +31,9 @@ const app = new Elysia()
       max: 100, // 100 requests/นาที ต่อ IP
       scoping: "global", // ครอบ route plugin ที่ .use() เข้ามาด้วย
       headers: true, // ส่ง RateLimit-* header กลับไป
-      skip: (req) => req.method === "OPTIONS", // ไม่นับ CORS preflight
+      skip: (req) =>
+        req.method === "OPTIONS" ||
+        new URL(req.url).pathname.endsWith("/events"), // ไม่นับ CORS preflight
       generator: (request, server) => {
         // หลัง proxy (Railway/Fly) IP จริงอยู่ใน x-forwarded-for; รันเครื่อง local ค่อย fallback
         const xff = request.headers.get("x-forwarded-for");
@@ -55,6 +58,7 @@ const app = new Elysia()
   .use(userRoutes)
   .use(itemRoutes)
   .use(groupRoutes)
+  .use(eventRoutes)
   .use(settlementRoutes)
   .listen({
     port: process.env.PORT ? parseInt(process.env.PORT) : 8080,
