@@ -13,10 +13,10 @@ import { generatePromptPayPayload } from "../services/settlement.service";
 
 export const settlementRoutes = new Elysia()
   .get(
-    "/rooms/:code/settlement",
-    async ({ params: { code }, set }) => {
+    "/rooms/:roomId/settlement",
+    async ({ params: { roomId }, set }) => {
       // ── 1. หาห้อง ──
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+      const [room] = await db.select().from(rooms).where(eq(rooms.id, roomId));
       if (!room) {
         set.status = 404;
         return { error: "ไม่พบห้อง" };
@@ -156,7 +156,7 @@ export const settlementRoutes = new Elysia()
           toPhone,
           // เจ้าหนี้มีเบอร์ → สร้าง payload พร้อมยอด fix ให้เลย, ไม่มี → null (frontend ค่อยขอเบอร์)
           promptPayPayload: toPhone
-            ? generatePromptPayPayload(code, toPhone, roundedAmount)
+            ? generatePromptPayPayload(roomId, toPhone, roundedAmount)
             : null,
         });
         creditors[ci].balance -= amount;
@@ -183,10 +183,9 @@ export const settlementRoutes = new Elysia()
     },
   )
   .post(
-    "/rooms/:code/settlement/qrcode",
-    async ({ params: { code }, body: { phoneNumber, amount } }) => {
-      
-      const payload = generatePromptPayPayload(code,phoneNumber, amount);
+    "/rooms/:roomId/settlement/qrcode",
+    async ({ params: { roomId }, body: { phoneNumber, amount } }) => {
+      const payload = generatePromptPayPayload(roomId, phoneNumber, amount);
       return { payload };
     },
     {

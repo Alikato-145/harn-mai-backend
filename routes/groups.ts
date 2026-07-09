@@ -16,10 +16,10 @@ import { notifyRoom } from "../services/events.service";
 
 export const groupRoutes = new Elysia()
   .post(
-    "/rooms/:code/groups",
-    async ({ params: { code }, body: { name, userIds }, set }) => {
-      const result = await createGroup(code, name, userIds);
-      notifyRoom(code);
+    "/rooms/:roomId/groups",
+    async ({ params: { roomId }, body: { name, userIds }, set }) => {
+      const result = await createGroup(roomId, name, userIds);
+      notifyRoom(roomId);
       return result;
     },
     {
@@ -36,9 +36,9 @@ export const groupRoutes = new Elysia()
     },
   )
   .get(
-    "/rooms/:code/groups",
-    async ({ params: { code }, set }) => {
-      const groups = await getGroupByCode(code);
+    "/rooms/:roomId/groups",
+    async ({ params: { roomId }, set }) => {
+      const groups = await getGroupByCode(roomId);
       return groups;
     },
     {
@@ -51,9 +51,9 @@ export const groupRoutes = new Elysia()
     },
   )
   .get(
-    "/rooms/:code/groups/:groupId/members",
-    async ({ params: { code, groupId }, set }) => {
-      const members = await getUsersInGroup(groupId, code);
+    "/rooms/:roomId/groups/:groupId/members",
+    async ({ params: { roomId, groupId }, set }) => {
+      const members = await getUsersInGroup(groupId, roomId);
       return members;
     },
     {
@@ -65,10 +65,10 @@ export const groupRoutes = new Elysia()
     },
   )
   .patch(
-    "/rooms/:code/groups/:groupId",
-    async ({ params: { code, groupId }, set, body: { name } }) => {
-      const updatedGroup = await updateGroupName(code, groupId, name);
-      notifyRoom(code);
+    "/rooms/:roomId/groups/:groupId",
+    async ({ params: { roomId, groupId }, set, body: { name } }) => {
+      const updatedGroup = await updateGroupName(roomId, groupId, name);
+      notifyRoom(roomId);
       return updatedGroup;
     },
     {
@@ -83,10 +83,10 @@ export const groupRoutes = new Elysia()
     },
   )
   .delete(
-    "/rooms/:code/groups/:groupId",
-    async ({ params: { code, groupId }, set }) => {
-      const group = await deleteGroup(code, groupId);
-      notifyRoom(code);
+    "/rooms/:roomId/groups/:groupId",
+    async ({ params: { roomId, groupId }, set }) => {
+      const group = await deleteGroup(roomId, groupId);
+      notifyRoom(roomId);
       return { message: `ลบกลุ่ม ${group.name} สำเร็จ` };
     },
     {
@@ -99,10 +99,10 @@ export const groupRoutes = new Elysia()
     },
   )
   .post(
-    "/rooms/:code/groups/:groupId/members",
-    async ({ params: { code, groupId }, set, body: { userIds } }) => {
-      const result = await addMembersToGroup(code, groupId, userIds);
-      notifyRoom(code);
+    "/rooms/:roomId/groups/:groupId/members",
+    async ({ params: { roomId, groupId }, set, body: { userIds } }) => {
+      const result = await addMembersToGroup(roomId, groupId, userIds);
+      notifyRoom(roomId);
       return result;
     },
     {
@@ -118,10 +118,10 @@ export const groupRoutes = new Elysia()
     },
   )
   .delete(
-    "/rooms/:code/groups/:groupId/members/:userId",
-    async ({ params: { code, groupId, userId }, set }) => {
-      const result = await deleteMembersInGroup(code, groupId, userId);
-      notifyRoom(code);
+    "/rooms/:roomId/groups/:groupId/members/:userId",
+    async ({ params: { roomId, groupId, userId }, set }) => {
+      const result = await deleteMembersInGroup(roomId, groupId, userId);
+      notifyRoom(roomId);
       return result;
     },
     {

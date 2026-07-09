@@ -2,11 +2,11 @@ import { db } from "../db/index";
 import { users } from "../db/schema";
 import { and, eq } from "drizzle-orm";
 import { NotFoundError, BadRequestError } from "./errors.service";
-import { getRoomByCode } from "./rooms.service";
+import { getRoomById } from "./rooms.service";
 
 // เพิ่มคนในห้อง — phone optional (ไว้ gen QR ตอน settlement ถ้าเป็นเจ้าหนี้)
-export async function addUserToRoom(code: string, name: string, phone?: string) {
-  const room = await getRoomByCode(code);
+export async function addUserToRoom(roomId: string, name: string, phone?: string) {
+  const room = await getRoomById(roomId); // 404 ถ้าห้องไม่มี (กัน roomId มั่ว เพราะ FK ไม่ enforce)
   const [user] = await db
     .insert(users)
     .values({ name, roomId: room.id, phone })
@@ -15,8 +15,8 @@ export async function addUserToRoom(code: string, name: string, phone?: string) 
 }
 
 // ลบคนออกจากห้อง
-export async function removeUserFromRoom(code: string, userId: string) {
-  await getRoomByCode(code); // 404 ถ้าห้องไม่มี
+export async function removeUserFromRoom(roomId: string, userId: string) {
+  await getRoomById(roomId); // 404 ถ้าห้องไม่มี
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) throw new NotFoundError("ไม่พบผู้ใช้");
   await db.delete(users).where(eq(users.id, userId));
@@ -25,11 +25,11 @@ export async function removeUserFromRoom(code: string, userId: string) {
 
 // แก้ชื่อ/เบอร์ของ user — ส่งมาเฉพาะ field ที่จะแก้ (partial update)
 export async function updateUser(
-  code: string,
+  roomId: string,
   userId: string,
   data: { name?: string; phone?: string },
 ) {
-  const room = await getRoomByCode(code);
+  const room = await getRoomById(roomId);
   if (!(await isUserInRoom(room.id, userId)))
     throw new NotFoundError("ไม่พบผู้ใช้ในห้องนี้");
 
@@ -49,8 +49,8 @@ export async function updateUser(
 }
 
 // list คนทั้งห้อง
-export async function getUsersInRoom(code: string) {
-  const room = await getRoomByCode(code);
+export async function getUsersInRoom(roomId: string) {
+  const room = await getRoomById(roomId);
   return db.select().from(users).where(eq(users.roomId, room.id));
 }
 

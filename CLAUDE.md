@@ -54,49 +54,59 @@ FK ทุกตัวเป็น `text` ตามไปด้วย
 | `items_map_with_group` | ผูก item กับกลุ่มที่หาร (M:N items↔groups) | `groupId`, `itemId` (cascade) + **unique(groupId, itemId)** |
 
 ## API (ครบแล้ว)
+> **สำคัญ:** ทุก endpoint ที่ทำงานกับห้อง ใช้ **`:roomId` (UUID)** เป็น path param — ยกเว้น "ประตู join" 2 เส้นที่ยัง lookup ด้วย `code`/`roomId` ตรง ๆ. เหตุผล: `code` 6 ตัวเดาง่าย เลยจำกัดให้รับ code แค่เส้น join เดียว (rate limit เข้ม) ที่เหลือใช้ UUID ที่เดาไม่ได้ ดู [Key design decisions #1]
+> **router gotcha:** enter ใช้ path `/rooms/code/:code` (static segment) ไม่ใช่ `/rooms/:code` — เพราะ memoirist ห้าม dynamic segment ตำแหน่งเดียวกันชื่อ param ต่างกัน (`:code` จะชนกับ `:roomId`)
 ```
 # Rooms
-POST /rooms                              # สร้างห้อง + host   body: { roomName, hostName } → { code, userId }
-GET  /rooms/:code                        # เข้าห้อง แบบเบา (เช็คว่ามีจริง) → room row
-GET  /rooms/:code/full                   # โหลด hub → { room, members, groups(+members), items(+payerName,groupNames) }
-POST /rooms/:code/finish                 # host จบห้อง → ลบข้อมูลห้องทั้งหมด   body: { userId } (ต้อง === hostUserId)
+POST /rooms                              # สร้างห้อง + host   body: { roomName, hostName } → { code, userId, roomId }
+GET  /rooms/code/:code                   # [join] หาห้องจาก code (rate limit เข้ม 10/นาที) → room row (มี id ให้ไปใช้ต่อ)
+GET  /rooms/id/:roomId                   # [join] หาห้องจาก roomId (UUID) → room row
+GET  /rooms/:roomId/full                 # โหลด hub → { room, members, groups(+members), items(+payerName,groupNames) }
+POST /rooms/:roomId/finish               # host จบห้อง → ลบข้อมูลห้องทั้งหมด   body: { userId } (ต้อง === hostUserId)
 
 # Users
-POST /rooms/:code/users                  # เพิ่มคนในห้อง       body: { name } → { userId, name }
+POST   /rooms/:roomId/users              # เพิ่มคนในห้อง       body: { name, phone? } → { userId, name, phone }
+PATCH  /rooms/:roomId/users/:userId      # แก้ชื่อ/เบอร์       body: { name?, phone? }
+DELETE /rooms/:roomId/users/:userId      # ลบคนออกจากห้อง
 
 # Items
-POST /rooms/:code/items                  # สร้าง item เปล่า    body: { name, note? }
-POST /rooms/:code/items/:itemId/claim    # claim              body: { price, claimedBy, splitMode, groupIds? }
-POST /rooms/:code/items/:itemId/unclaim  # reset item กลับเป็นเปล่า + ลบ mapping
+POST /rooms/:roomId/items                  # สร้าง item เปล่า    body: { name, note? }
+POST /rooms/:roomId/items/:itemId/claim    # claim              body: { price, claimedBy, splitMode, groupIds? }
+POST /rooms/:roomId/items/:itemId/unclaim  # reset item กลับเป็นเปล่า + ลบ mapping
+DELETE /rooms/:roomId/items/:itemId        # ลบ item
 
 # Groups
-POST   /rooms/:code/groups                       # สร้างกลุ่ม + สมาชิก  body: { name, userIds[] }
-GET    /rooms/:code/groups                        # list กลุ่มในห้อง
-GET    /rooms/:code/groups/:groupId/members       # สมาชิกในกลุ่ม (join users → มีชื่อ)
-PATCH  /rooms/:code/groups/:groupId               # แก้ชื่อกลุ่ม  body: { name }
-DELETE /rooms/:code/groups/:groupId               # ลบกลุ่ม
-POST   /rooms/:code/groups/:groupId/members       # เพิ่มสมาชิก  body: { userIds[] }
-DELETE /rooms/:code/groups/:groupId/members/:userId  # ลบสมาชิก
+POST   /rooms/:roomId/groups                       # สร้างกลุ่ม + สมาชิก  body: { name, userIds[] }
+GET    /rooms/:roomId/groups                        # list กลุ่มในห้อง
+GET    /rooms/:roomId/groups/:groupId/members       # สมาชิกในกลุ่ม (join users → มีชื่อ)
+PATCH  /rooms/:roomId/groups/:groupId               # แก้ชื่อกลุ่ม  body: { name }
+DELETE /rooms/:roomId/groups/:groupId               # ลบกลุ่ม
+POST   /rooms/:roomId/groups/:groupId/members       # เพิ่มสมาชิก  body: { userIds[] }
+DELETE /rooms/:roomId/groups/:groupId/members/:userId  # ลบสมาชิก
 
 # Settlement
-GET  /rooms/:code/settlement             # คำนวณหารเงิน → { totalClaimed, pendingItems, balances, transactions }
+GET  /rooms/:roomId/settlement           # คำนวณหารเงิน → { totalClaimed, pendingItems, balances, transactions }
+POST /rooms/:roomId/settlement/qrcode    # gen PromptPay payload  body: { phoneNumber, amount }
+
+# Realtime
+GET  /rooms/:roomId/events               # SSE stream — push { type:"changed" } ตอนห้องมีการแก้ไข (frontend refetch)
 
 # System
 GET  /health                             # health check
 ```
 
 ## Key design decisions (สำคัญ — อย่าเปลี่ยนโดยไม่ถาม)
-1. **ไม่มี login/password** — เข้าห้องด้วย `code`, ระบุตัวตนด้วย **UUID `userId`** (client เก็บใน localStorage)
+1. **ไม่มี login/password** — **join** ห้องด้วย `code` (6 ตัว) → ได้ `roomId` (UUID) กลับมา, จากนั้น**ทุก operation ยิงด้วย `:roomId`** ไม่ใช่ code. ระบุตัวตนด้วย **UUID `userId`** (client เก็บใน localStorage). เหตุผล: `code` เดาง่าย เลยจำกัดให้รับ code แค่เส้น join (rate limit เข้ม) ที่เหลือใช้ UUID เดาไม่ได้ = ลด attack surface การไล่เดา. **หมายเหตุ:** นี่เป็น capability-based (ใครถือ roomId ก็เข้าถึงได้) ไม่ใช่ auth รายคน — คนในห้องแก้ข้อมูลกันได้หมดตามดีไซน์
 2. **Identity = userId (UUID)** — เดิมเคยมี `token` แต่**ตัดออกแล้ว** เพราะ UUID เดายากอยู่แล้ว
 3. **host คือ user ที่ `users.id === rooms.hostUserId`** — ไม่แยกตาราง host (host ก็เป็น user เต็มตัว ซื้อของ/หารเงินได้)
-4. **host ต่างจากคนอื่นแค่เรื่องเดียว: จบห้อง** — `POST /finish` เช็ก `userId === hostUserId` แล้ว **hard-delete ข้อมูลทั้งห้อง** (ไม่ได้ set status="finished") → เจตนา: ประหยัด storage + privacy + ephemeral UX. หลัง finish ทุก endpoint ของ code นั้นคืน 404 อัตโนมัติ (= status guard ในตัว)
+4. **host ต่างจากคนอื่นแค่เรื่องเดียว: จบห้อง** — `POST /finish` เช็ก `userId === hostUserId` แล้ว **hard-delete ข้อมูลทั้งห้อง** (ไม่ได้ set status="finished") → เจตนา: ประหยัด storage + privacy + ephemeral UX. หลัง finish ทุก endpoint ของ roomId นั้นคืน 404 อัตโนมัติ (= status guard ในตัว)
 5. **สร้าง room ใช้ UUID ล่วงหน้า** (`randomUUID()` ทั้ง room+user ก่อน insert) → ตัดปัญหา circular dependency (rooms.hostUserId ↔ users.roomId) ไม่ต้อง placeholder+update
 6. **item เกิดมาเปล่า** (แค่ `name`) → `price` + `claimedBy` มาใส่ทีหลังตอน **claim**
 7. **claim = "reset-then-set"** — ทุกครั้งที่ claim จะ **ลบ `items_map_with_group` เก่าเสมอ** แล้วค่อย insert ใหม่ (เฉพาะ mode group) → กัน mapping ค้างตอน re-claim. unclaim ก็ลบ mapping ด้วย
 8. **splitMode:** `"all"` = หารทั้งห้อง, `"group"` = หารเฉพาะ union สมาชิกกลุ่มที่ผูก (distinct)
 9. **validation ที่ Elysia คือ source of truth** — SQLite ไม่บังคับ enum จริง → validate ที่ layer นี้ (เช่น `t.Union([t.Literal("all"), t.Literal("group")])`) + FK ไม่ enforce → ต้อง validate ว่า claimedBy/userIds/groupIds อยู่ในห้องนั้นเอง
 
-## Domain logic — การหารเงิน (implement แล้วที่ `GET /rooms/:code/settlement`)
+## Domain logic — การหารเงิน (implement แล้วที่ `GET /rooms/:roomId/settlement`)
 แยก **"คนจ่าย" (claimedBy)** ออกจาก **"คนหาร"** (สมาชิกกลุ่มที่ item ผูก หรือทั้งห้องถ้า `splitMode="all"`)
 ```
 paid = { member: 0 }, owes = { member: 0 }

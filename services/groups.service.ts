@@ -1,11 +1,11 @@
-import { getRoomByCode } from "./rooms.service";
+import { getRoomById } from "./rooms.service";
 import { randomUUID } from "node:crypto";
 import { db } from "../db/index";
 import { rooms, users, groupsInRoom, memberInGroup } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 
-export async function IsgroupInroom(groupId: string, roomCode: string) {
-  const room = await getRoomByCode(roomCode);
+export async function IsgroupInroom(groupId: string, roomId: string) {
+  const room = await getRoomById(roomId);
   if (!room) throw new Error("ไม่พบห้อง");
   const group = await db
     .select()
@@ -13,8 +13,8 @@ export async function IsgroupInroom(groupId: string, roomCode: string) {
     .where(eq(groupsInRoom.id, groupId));
   return group.length > 0;
 }
-export async function getGroupInroom(groupId: string, roomCode: string) {
-  const room = await getRoomByCode(roomCode);
+export async function getGroupInroom(groupId: string, roomId: string) {
+  const room = await getRoomById(roomId);
   const [group] = await db
     .select()
     .from(groupsInRoom)
@@ -24,11 +24,11 @@ export async function getGroupInroom(groupId: string, roomCode: string) {
 }
 
 export async function createGroup(
-  code: string,
+  roomId: string,
   groupName: string,
   userIds: string[],
 ) {
-  const room = await getRoomByCode(code);
+  const room = await getRoomById(roomId);
   const groupId = randomUUID();
   const roomUsers = await db
     .select()
@@ -50,16 +50,16 @@ export async function createGroup(
   return { groupId, name: groupName, userIds: uniqueIds };
 }
 
-export async function getGroupByCode(code: string) {
-  const room = await getRoomByCode(code);
+export async function getGroupByCode(roomId: string) {
+  const room = await getRoomById(roomId);
   const groups = await db
     .select()
     .from(groupsInRoom)
     .where(eq(groupsInRoom.roomId, room.id));
   return groups;
 }
-export async function getUsersInGroup(groupId: string, code: string) {
-  const room = await getRoomByCode(code);
+export async function getUsersInGroup(groupId: string, roomId: string) {
+  const room = await getRoomById(roomId);
   const [group] = await db
     .select()
     .from(groupsInRoom)
@@ -77,12 +77,12 @@ export async function getUsersInGroup(groupId: string, code: string) {
   return { groupId, name: group.name, members: membersInGroup };
 }
 export async function updateGroupName(
-  roomCode: string,
+  roomId: string,
   groupId: string,
   name: string,
 ) {
-  const room = await getRoomByCode(roomCode);
-  if (!(await IsgroupInroom(roomCode, groupId)))
+  const room = await getRoomById(roomId);
+  if (!(await IsgroupInroom(roomId, groupId)))
     throw new Error("ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง");
   await db
     .update(groupsInRoom)
@@ -90,20 +90,20 @@ export async function updateGroupName(
     .where(eq(groupsInRoom.id, groupId));
   return { groupId, name };
 }
-export async function deleteGroup(roomCode: string, groupId: string) {
-  const room = await getRoomByCode(roomCode);
-  const group = await getGroupInroom(groupId, roomCode);
+export async function deleteGroup(roomId: string, groupId: string) {
+  const room = await getRoomById(roomId);
+  const group = await getGroupInroom(groupId, roomId);
   await db.delete(groupsInRoom).where(eq(groupsInRoom.id, groupId));
   return { groupId, name: group.name };
 }
 
 export async function addMembersToGroup(
-  roomCode: string,
+  roomId: string,
   groupId: string,
   userIds: string[],
 ) {
-  const room = await getRoomByCode(roomCode);
-  if (!(await IsgroupInroom(roomCode, groupId)))
+  const room = await getRoomById(roomId);
+  if (!(await IsgroupInroom(roomId, groupId)))
     throw new Error("ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง");
   const roomUsers = await db
     .select()
@@ -113,7 +113,7 @@ export async function addMembersToGroup(
   if (!userIds.every((id) => validIds.has(id))) {
     throw new Error("มี userId ที่ไม่อยู่ในห้องนี้");
   }
-  const group = await getGroupInroom(groupId, roomCode);
+  const group = await getGroupInroom(groupId, roomId);
   const uniqueIds = [...new Set(userIds)];
   await db
     .insert(memberInGroup)
@@ -122,12 +122,12 @@ export async function addMembersToGroup(
   return { userIds: uniqueIds };
 }
 export async function deleteMembersInGroup(
-  roomCode: string,
+  roomId: string,
   groupId: string,
   userId: string,
 ) {
-  const room = await getRoomByCode(roomCode);
-  const group = await getGroupInroom(groupId, roomCode);
+  const room = await getRoomById(roomId);
+  const group = await getGroupInroom(groupId, roomId);
   const [member] = await db
     .select()
     .from(memberInGroup)

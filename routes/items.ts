@@ -18,10 +18,10 @@ import {
 import { notifyRoom } from "../services/events.service";
 export const itemRoutes = new Elysia()
   .post(
-    "/rooms/:code/items",
-    async ({ params: { code }, body: { name, note }, set }) => {
-      const newItem = await addItemToRoom(code, name, note);
-      notifyRoom(code);
+    "/rooms/:roomId/items",
+    async ({ params: { roomId }, body: { name, note }, set }) => {
+      const newItem = await addItemToRoom(roomId, name, note);
+      notifyRoom(roomId);
       return newItem;
     },
     {
@@ -38,21 +38,21 @@ export const itemRoutes = new Elysia()
     },
   )
   .post(
-    "/rooms/:code/items/:itemId/claim",
+    "/rooms/:roomId/items/:itemId/claim",
     async ({
-      params: { code, itemId },
+      params: { roomId, itemId },
       body: { price, claimedBy, splitMode, groupIds },
       set,
     }) => {
       const updatedItem = await claimItem(
-        code,
+        roomId,
         itemId,
         price,
         claimedBy,
         splitMode,
         groupIds,
       );
-      notifyRoom(code);
+      notifyRoom(roomId);
       return updatedItem;
     },
     {
@@ -71,10 +71,10 @@ export const itemRoutes = new Elysia()
     },
   )
   .post(
-    "/rooms/:code/items/:itemId/unclaim",
-    async ({ params: { code, itemId }, set }) => {
-      const updatedItem = await unclaimItem(code, itemId);
-      notifyRoom(code);
+    "/rooms/:roomId/items/:itemId/unclaim",
+    async ({ params: { roomId, itemId }, set }) => {
+      const updatedItem = await unclaimItem(roomId, itemId);
+      notifyRoom(roomId);
       return updatedItem;
     },
     {
@@ -87,10 +87,10 @@ export const itemRoutes = new Elysia()
     },
   )
   .delete(
-    "/rooms/:code/items/:itemId",
-    async ({ set, params: { code, itemId } }) => {
-      const result = await deleteItem(code, itemId);
-      notifyRoom(code);
+    "/rooms/:roomId/items/:itemId",
+    async ({ set, params: { roomId, itemId } }) => {
+      const result = await deleteItem(roomId, itemId);
+      notifyRoom(roomId);
       return { message: "ลบ item สำเร็จ" };
     },
   );

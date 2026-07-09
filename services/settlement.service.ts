@@ -1,4 +1,3 @@
-import { getRoomByCode } from "./rooms.service";
 // สร้างท่อน TLV หนึ่งท่อน เช่น tlv("00", "01") → "000201"
 function tlv(tag: string, value: string): string {
   const len = value.length.toString().padStart(2, "0");
@@ -19,11 +18,10 @@ function crc16(payload: string): string {
 }
 
 export function generatePromptPayPayload(
-  code: string,
+  roomId: string,
   phone: string,
   amount: number,
 ): string {
-  const room = getRoomByCode(code);
   // "0812345678" → "0066812345678"
   const formattedPhone = "0066" + phone.replace(/^0/, "");
 

@@ -2,8 +2,8 @@ import { Elysia } from "elysia";
 import { subscribe } from "../services/events.service";
 
 export const eventRoutes = new Elysia().get(
-  "/rooms/:code/events",
-  async ({ params: { code }, request, set }) => {
+  "/rooms/:roomId/events",
+  async ({ params: { roomId }, request, set }) => {
     set.headers["content-type"] = "text/event-stream";
     set.headers["cache-control"] = "no-cache";
     set.headers["connection"] = "keep-alive";
@@ -14,7 +14,7 @@ export const eventRoutes = new Elysia().get(
           controller.enqueue(enc.encode(m));
         };
         send(": connected\n\n");
-        const unsub = subscribe(code, send);
+        const unsub = subscribe(roomId, send);
         const hb = setInterval(() => send(": ping\n\n"), 25000);
 
         request.signal.addEventListener("abort", () => {

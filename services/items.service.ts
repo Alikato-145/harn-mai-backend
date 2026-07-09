@@ -2,7 +2,7 @@ import { db } from "../db/index";
 import { items, groupsInRoom, itemsMapWithGroup } from "../db/schema";
 import { and, eq } from "drizzle-orm";
 import { NotFoundError, BadRequestError } from "./errors.service";
-import { getRoomByCode } from "./rooms.service";
+import { getRoomById } from "./rooms.service";
 import { isUserInRoom } from "./users.service";
 
 // เช็คว่า item อยู่ในห้องนี้จริงไหม — รับ roomId ที่ resolve มาแล้ว
@@ -14,8 +14,8 @@ export async function isItemInRoom(roomId: string, itemId: string) {
   return !!item;
 }
 
-export async function addItemToRoom(code: string, name: string, note?: string) {
-  const room = await getRoomByCode(code);
+export async function addItemToRoom(roomId: string, name: string, note?: string) {
+  const room = await getRoomById(roomId);
   const [newItem] = await db
     .insert(items)
     .values({
@@ -28,14 +28,14 @@ export async function addItemToRoom(code: string, name: string, note?: string) {
 }
 
 export async function claimItem(
-  code: string,
+  roomId: string,
   itemId: string,
   price: number,
   claimedBy: string,
   splitMode: string,
   groupIds?: string[],
 ) {
-  const room = await getRoomByCode(code);
+  const room = await getRoomById(roomId);
   if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเท็ม");
   if (!(await isUserInRoom(room.id, claimedBy)))
@@ -82,8 +82,8 @@ export async function claimItem(
   return updatedItem;
 }
 
-export async function unclaimItem(code: string, itemId: string) {
-  const room = await getRoomByCode(code);
+export async function unclaimItem(roomId: string, itemId: string) {
+  const room = await getRoomById(roomId);
   if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
   const [updatedItem] = await db.transaction(async (tx) => {
@@ -100,8 +100,8 @@ export async function unclaimItem(code: string, itemId: string) {
   return updatedItem;
 }
 
-export async function deleteItem(code: string, itemId: string) {
-  const room = await getRoomByCode(code);
+export async function deleteItem(roomId: string, itemId: string) {
+  const room = await getRoomById(roomId);
   if (!(await isItemInRoom(room.id, itemId)))
     throw new NotFoundError("ไม่พบไอเทมในห้องนี้");
   await db.transaction(async (tx) => {

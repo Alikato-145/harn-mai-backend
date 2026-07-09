@@ -7,10 +7,10 @@ import {
 import { notifyRoom } from "../services/events.service";
 export const userRoutes = new Elysia()
   .post(
-    "/rooms/:code/users",
-    async ({ params: { code }, body: { name, phone } }) => {
-      const result = await addUserToRoom(code, name, phone);
-      notifyRoom(code);
+    "/rooms/:roomId/users",
+    async ({ params: { roomId }, body: { name, phone } }) => {
+      const result = await addUserToRoom(roomId, name, phone);
+      notifyRoom(roomId);
       return result;
     },
     {
@@ -21,16 +21,16 @@ export const userRoutes = new Elysia()
       detail: {
         summary: "เพิ่มคนในห้อง",
         description:
-          "สร้าง user ใหม่ในห้อง (กรอกชื่อเพื่อน + เบอร์ PromptPay ถ้ามี) — ใครมี code ก็สร้างได้ คืน { userId, name, phone }",
+          "สร้าง user ใหม่ในห้อง (กรอกชื่อเพื่อน + เบอร์ PromptPay ถ้ามี) — ใครมี roomId ก็สร้างได้ คืน { userId, name, phone }",
         tags: ["Users"],
       },
     },
   )
   .patch(
-    "/rooms/:code/users/:userId",
-    async ({ params: { code, userId }, body }) => {
-      const result = await updateUser(code, userId, body);
-      notifyRoom(code);
+    "/rooms/:roomId/users/:userId",
+    async ({ params: { roomId, userId }, body }) => {
+      const result = await updateUser(roomId, userId, body);
+      notifyRoom(roomId);
       return result;
     },
     {
@@ -47,10 +47,10 @@ export const userRoutes = new Elysia()
     },
   )
   .delete(
-    "/rooms/:code/users/:userId",
-    async ({ params: { code, userId } }) => {
-      await removeUserFromRoom(code, userId);
-      notifyRoom(code);
+    "/rooms/:roomId/users/:userId",
+    async ({ params: { roomId, userId } }) => {
+      await removeUserFromRoom(roomId, userId);
+      notifyRoom(roomId);
     },
     {
       detail: {

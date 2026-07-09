@@ -69,9 +69,9 @@ export const roomRoutes = new Elysia()
     },
   )
   .get(
-    "/rooms/:code/full",
-    async ({ params: { code }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+    "/rooms/:roomId/full",
+    async ({ params: { roomId }, set }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.id, roomId));
       if (!room) {
         set.status = 404;
         return { error: "ไม่พบห้อง" };
@@ -160,9 +160,9 @@ export const roomRoutes = new Elysia()
     },
   )
   .post(
-    "/rooms/:code/finish",
-    async ({ params: { code }, body: { userId }, set }) => {
-      const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
+    "/rooms/:roomId/finish",
+    async ({ params: { roomId }, body: { userId }, set }) => {
+      const [room] = await db.select().from(rooms).where(eq(rooms.id, roomId));
       if (!room) {
         set.status = 404;
         return { error: "ไม่พบห้อง" };
@@ -174,7 +174,7 @@ export const roomRoutes = new Elysia()
       }
 
       await deleteRoomAndData(room.id);
-      notifyRoom(code);
+      notifyRoom(roomId);
       return { message: "จบห้องแล้ว ข้อมูลถูกลบทั้งหมด" };
     },
     {
