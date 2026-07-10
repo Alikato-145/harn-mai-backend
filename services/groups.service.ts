@@ -27,6 +27,7 @@ export async function createGroup(
   roomId: string,
   groupName: string,
   userIds: string[],
+  isCreatedByItem: boolean = false,
 ) {
   const room = await getRoomById(roomId);
   const groupId = randomUUID();
@@ -42,7 +43,7 @@ export async function createGroup(
   await db.transaction(async (tx) => {
     await tx
       .insert(groupsInRoom)
-      .values({ id: groupId, roomId: room.id, name: groupName });
+      .values({ id: groupId, roomId: room.id, name: groupName, isCreatedByItem });
     await tx
       .insert(memberInGroup)
       .values(uniqueIds.map((uid) => ({ groupId, userId: uid })));
