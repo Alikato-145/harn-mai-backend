@@ -1,5 +1,5 @@
 import { db } from "../db/index";
-import { users } from "../db/schema";
+import { users, items, memberInGroup, itemsMapWithGroup } from "../db/schema";
 import { and, eq } from "drizzle-orm";
 import { NotFoundError, BadRequestError } from "./errors.service";
 import { getRoomById } from "./rooms.service";
@@ -14,12 +14,36 @@ export async function addUserToRoom(roomId: string, name: string, phone?: string
   return { userId: user.id, name: user.name, phone: user.phone };
 }
 
-// ลบคนออกจากห้อง
+// ลบคนออกจากห้อง — ต้องล้างข้อมูลลูกเองใน transaction (Turso ไม่ cascade)
 export async function removeUserFromRoom(roomId: string, userId: string) {
-  await getRoomById(roomId); // 404 ถ้าห้องไม่มี
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user) throw new NotFoundError("ไม่พบผู้ใช้");
-  await db.delete(users).where(eq(users.id, userId));
+  const room = await getRoomById(roomId); // 404 ถ้าห้องไม่มี
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.roomId, room.id)));
+  if (!user) throw new NotFoundError("ไม่พบผู้ใช้ในห้องนี้");
+  // host ลบไม่ได้ — ไม่งั้นไม่เหลือใครกดจบห้อง (design decision #4)
+  if (userId === room.hostUserId)
+    throw new BadRequestError("ลบ host ไม่ได้");
+  await db.transaction(async (tx) => {
+    // เอาออกจากทุกกลุ่ม — ถ้าปล่อยค้าง settlement จะหารรวม "คนผี" ทำยอดเพี้ยน
+    await tx.delete(memberInGroup).where(eq(memberInGroup.userId, userId));
+    // item ที่คนนี้จ่ายไว้ → unclaim กลับเป็น item เปล่า (แบบเดียวกับ unclaimItem)
+    const claimed = await tx
+      .select({ id: items.id })
+      .from(items)
+      .where(and(eq(items.roomId, room.id), eq(items.claimedBy, userId)));
+    for (const it of claimed) {
+      await tx
+        .update(items)
+        .set({ claimedBy: null, price: null, splitMode: "all" })
+        .where(eq(items.id, it.id));
+      await tx
+        .delete(itemsMapWithGroup)
+        .where(eq(itemsMapWithGroup.itemId, it.id));
+    }
+    await tx.delete(users).where(eq(users.id, userId));
+  });
   return { message: "ลบผู้ใช้สำเร็จ" };
 }
 
