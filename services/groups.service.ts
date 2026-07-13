@@ -82,7 +82,7 @@ export async function updateGroupName(
   name: string,
 ) {
   const room = await getRoomById(roomId);
-  if (!(await IsgroupInroom(roomId, groupId)))
+  if (!(await IsgroupInroom(groupId, roomId)))
     throw new Error("ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง");
   await db
     .update(groupsInRoom)
@@ -103,7 +103,7 @@ export async function addMembersToGroup(
   userIds: string[],
 ) {
   const room = await getRoomById(roomId);
-  if (!(await IsgroupInroom(roomId, groupId)))
+  if (!(await IsgroupInroom(groupId, roomId)))
     throw new Error("ไม่พบกลุ่มที่เลือกไว้ กรุณาลองใหม่อีกครั้ง");
   const roomUsers = await db
     .select()
