@@ -70,7 +70,7 @@ const app = new Elysia()
 console.log(`Server is running on port ${app.server?.port}`);
 
 // ── cleanup ห้องหมดอายุ (สร้างเกิน 7 วัน) — รันตอน start + ทุก 24 ชม. ──
-const ROOM_TTL_DAYS = 7;
+const ROOM_TTL_DAYS = 30;
 const CLEANUP_EVERY_MS = 24 * 60 * 60 * 1000;
 
 async function runCleanup() {
