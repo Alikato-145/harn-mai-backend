@@ -41,8 +41,7 @@ export const itemRoutes = new Elysia()
     "/rooms/:roomId/items/:itemId/claim",
     async ({
       params: { roomId, itemId },
-      body: { price, claimedBy, splitMode, groupIds },
-      set,
+      body: { price, claimedBy, splitMode, groupIds, userIds },
     }) => {
       const updatedItem = await claimItem(
         roomId,
@@ -51,6 +50,7 @@ export const itemRoutes = new Elysia()
         claimedBy,
         splitMode,
         groupIds,
+        userIds,
       );
       notifyRoom(roomId);
       return updatedItem;
@@ -61,11 +61,12 @@ export const itemRoutes = new Elysia()
         claimedBy: t.String(),
         splitMode: t.Union([t.Literal("all"), t.Literal("group")]),
         groupIds: t.Optional(t.Array(t.String({ minLength: 1 }))),
+        userIds: t.Optional(t.Array(t.String({ minLength: 1 }))),
       }),
       detail: {
         summary: "claim item (ระบุคนจ่าย + ราคา)",
         description:
-          "ใส่ price + claimedBy (คนจ่าย) + splitMode ให้ item — 'all' หารทั้งห้อง, 'group' หารเฉพาะกลุ่ม (การผูกกลุ่มยังไม่ implement)",
+          "ใส่ price + claimedBy (คนจ่าย) + splitMode ให้ item — 'all' หารทั้งห้อง, 'group' หารเฉพาะกลุ่ม. โหมด group ส่ง groupIds (กลุ่มที่ตั้งชื่อไว้) หรือ userIds (โหมดเลือกคน → สร้างกลุ่มลับให้อัตโนมัติ) อย่างใดอย่างหนึ่ง",
         tags: ["Items"],
       },
     },

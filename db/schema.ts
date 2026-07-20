@@ -1,6 +1,7 @@
 // src/db/schema.ts
-import { sqliteTable, text, real, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, uniqueIndex,integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+
 import { randomUUID } from "node:crypto";
 
 // ── ตารางพื้นฐาน ──
@@ -58,7 +59,8 @@ export const groupsInRoom = sqliteTable("groups_in_room", {
   roomId: text("room_id")
     .notNull()
     .references(() => rooms.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
+  name: text("name"),
+  isCreatedByItem: integer("is_created_by_item", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
