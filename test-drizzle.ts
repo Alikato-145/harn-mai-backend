@@ -5,4 +5,4 @@ const result = await db
   .insert(rooms)
   .values({ code: "", name: "", hostToken: "", hostUserId: 0, status: "open" })
   .returning();
-console.log(result);แก
+console.log(result);
